@@ -105,6 +105,8 @@ public final class DateParser {
     private static final Pattern AM = Pattern.compile(
             "^.{0,25}?\\b(?:de\\s+la\\s+manana|por\\s+la\\s+manana|del\\s+mati|al\\s+mati|de\\s+la\\s+madrugada|"
                     + "de\\s+matinada|am|a\\.m\\.)");
+    private static final Pattern AM_ANYWHERE = Pattern.compile(
+            "\\b(?:por\\s+la\\s+manana|de\\s+la\\s+manana|esta\\s+manana|al\\s+mati|del\\s+mati|aquest\\s+mati|de\\s+matinada)\\b");
     private static final Pattern PM_ANYWHERE = Pattern.compile(
             "\\b(?:esta\\s+tarde|esta\\s+noche|aquesta\\s+tarda|aquest\\s+vespre|aquesta\\s+nit)\\b");
 
@@ -165,7 +167,7 @@ public final class DateParser {
             h.pos = m.start(); h.end = m.end();
             h.hour = toHour(hourText);
             h.minute = m.group(3) != null ? Integer.parseInt(m.group(3)) : 0;
-            h.explicitHour = !isWord && (hourText.length() == 2 || h.hour >= 13 || h.hour == 0);
+            h.explicitHour = !isWord && (hourText.startsWith("0") || (hourText.length() == 2 && m.group(3) != null) || h.hour >= 13 || h.hour == 0);
             String frac = m.group(4);
             if (frac != null) {
                 if (frac.contains("media") || frac.contains("mitja")) h.minute = 30;
@@ -268,9 +270,11 @@ public final class DateParser {
             int hour = th.hour;
             String after = t.substring(th.end);
             boolean pm = PM.matcher(after).find() || PM_ANYWHERE.matcher(t).find();
-            boolean am = AM.matcher(after).find();
+            boolean amNear = !pm && AM.matcher(after).find();             // "a las 9 de la mañana"
+            boolean amFar = !pm && AM_ANYWHERE.matcher(t).find();          // "mañana por la mañana ... a las 9"
             if (pm && hour < 12) hour += 12;
-            else if (!am && !pm && !th.explicitHour && hour >= 1 && hour <= 7) { hour += 12; guessed = true; }
+            else if (!amNear && !pm && !th.explicitHour && hour >= 1 && hour <= 7) { hour += 12; guessed = true; } // nadie queda a las 5 de la madrugada
+            else if (!amNear && !amFar && !pm && !th.explicitHour && hour >= 8 && hour <= 11) guessed = true;  // "a las 9": ¿mañana o noche?
             if (hour > 23) return date == null ? null : new Result(date, null, false, date.isBefore(today));
             time = LocalTime.of(hour, th.minute);
         }

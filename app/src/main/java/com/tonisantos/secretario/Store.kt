@@ -58,6 +58,8 @@ object Store {
     /** Añade el mensaje si es nuevo. Devuelve true si no estaba. */
     @Synchronized
     fun addIfNew(c: Context, item: Item): Boolean {
+        // Un aviso viejo que siga en la barra no debe volver a entrar cada vez que se borre de la lista.
+        if (item.ts < System.currentTimeMillis() - KEEP_DAYS * 86_400_000L) return false
         val items = all(c)
         if (items.any { it.id == item.id }) return false
         items.add(item)

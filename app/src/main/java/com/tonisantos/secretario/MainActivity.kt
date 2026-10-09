@@ -20,6 +20,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -155,9 +156,10 @@ class MainActivity : Activity() {
         var shown = 0
         for (item in items) {
             val r = item.parsed()
-            if (!showAll && (item.status != "new" || r == null || r.past)) continue
+            if (!showAll && (item.status != "new" || r == null || r.past ||
+                    (r.date != null && r.date.isBefore(LocalDate.now())))) continue // ya pasó
             shown++
-            if (shown > 300) break
+            if (shown > 150) break
             addCard(item, r)
         }
         if (shown == 0) root.addView(text(
@@ -176,7 +178,8 @@ class MainActivity : Activity() {
             "dismissed" -> root.addView(text("✖ Descartado", 13f))
         }
         val buttons = mutableListOf<View>()
-        val rr: DateParser.Result? = if (item.status == "new" && r != null && r.date != null && !r.past) r else null
+        val rr: DateParser.Result? = if (item.status == "new" && r != null && r.date != null && !r.past &&
+            !r.date.isBefore(LocalDate.now())) r else null
         if (rr != null) buttons.add(button("Añadir") {
             val err = CalendarHelper.insert(this, item, rr)
             if (err == null) {

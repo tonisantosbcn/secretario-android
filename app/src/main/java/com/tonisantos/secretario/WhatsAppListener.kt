@@ -39,6 +39,8 @@ class WhatsAppListener : NotificationListenerService() {
         val appName = PACKAGES[sbn.packageName] ?: return
         val n = sbn.notification ?: return
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return // "5 mensajes de 3 chats"
+        if (n.flags and Notification.FLAG_ONGOING_EVENT != 0) return  // llamada en curso, "WhatsApp Web activo"…
+        if (n.category == Notification.CATEGORY_CALL) return           // llamadas entrantes
         val extras = n.extras ?: return
         Store.setLastSeen(this, System.currentTimeMillis())
 

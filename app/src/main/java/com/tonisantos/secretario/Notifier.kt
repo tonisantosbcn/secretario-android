@@ -25,7 +25,13 @@ object Notifier {
 
     fun describe(r: DateParser.Result): String {
         val d = r.date?.format(DATE_FMT) ?: "día sin indicar"
-        val t = r.time?.let { "a las " + it.toString() + if (r.timeGuessed) " (¿o por la mañana?)" else "" } ?: "sin hora"
+        val t = r.time?.let {
+            "a las " + it.toString() + when {
+                !r.timeGuessed -> ""
+                it.hour >= 12 -> " (¿o por la mañana?)"
+                else -> " (¿o por la tarde?)"
+            }
+        } ?: "sin hora"
         return "$d, $t"
     }
 
@@ -77,6 +83,7 @@ class ActionReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, intent: Intent) {
         val id = intent.getStringExtra(Notifier.EXTRA_ID) ?: return
         val item = Store.get(c, id) ?: return
+        if (item.status != "new") { Notifier.cancel(c, id); return } // ya se añadió o descartó desde la app
         when (intent.action) {
             Notifier.ACTION_ADD -> {
                 val r = item.parsed() ?: return

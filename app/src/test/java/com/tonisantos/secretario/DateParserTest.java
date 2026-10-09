@@ -33,7 +33,7 @@ public class DateParserTest {
 
     // Los del prototipo original que ya funcionaban
     @Test public void manana1730() { check("Mañana a las 17:30 tenemos reunión", "2026-10-10 17:30"); }
-    @Test public void hoy9() { check("Hoy a las 9:00 cita", "2026-10-09 09:00"); }
+    @Test public void hoy9() { check("Hoy a las 9:00 cita", "2026-10-09 09:00 (supuesta)"); }
     @Test public void fechaCompleta() { check("Reunión 25/10/2026 a las 16:15", "2026-10-25 16:15"); }
     @Test public void fechaImposible() {
         DateParser.Result r = DateParser.parse("Reunión 31/02/2026 a las 16:15", NOW);
@@ -47,7 +47,7 @@ public class DateParserTest {
     @Test public void dOctubre() { check("15 d’octubre a les 20:00", "2026-10-15 20:00"); }
 
     // Más formas habituales
-    @Test public void diaSolo() { check("el dia 3 a las 11", "2026-11-03 11:00"); }
+    @Test public void diaSolo() { check("el dia 3 a las 11", "2026-11-03 11:00 (supuesta)"); }
     @Test public void estaTarde() { check("Esta tarde a las 6", "2026-10-09 18:00"); }
     @Test public void estaManana() { check("nos vemos esta mañana a las 10", "2026-10-09 10:00"); }
     @Test public void reunionDeManana() { check("la reunión de mañana es a las 12:30", "2026-10-10 12:30"); }
@@ -63,6 +63,13 @@ public class DateParserTest {
         assertTrue(r.past);
     }
     @Test public void futuraNoPasada() { assertFalse(DateParser.parse("el 12/10", NOW).past); }
+
+    @Test public void manana9PorLaManana() { check("quedamos mañana por la mañana a las 9", "2026-10-10 09:00"); }
+    @Test public void ensayoALas8() { check("ensayo el lunes a las 8 de la tarde", "2026-10-12 20:00"); }
+    @Test public void doceMediodia() { check("el martes a las 12", "2026-10-13 12:00"); }
+
+    @Test public void estaMananaNoPuedo() { check("esta mañana no puedo, a las 5", "2026-10-09 17:00 (supuesta)"); }
+    @Test public void cincoDeLaManana() { check("mañana a las 5 de la mañana", "2026-10-10 05:00"); }
 
     // No debe saltar
     @Test public void saludo() { none("hola qué tal"); }
