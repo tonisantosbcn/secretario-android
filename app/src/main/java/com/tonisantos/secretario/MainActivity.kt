@@ -154,7 +154,18 @@ class MainActivity : Activity() {
         val okB = batteryOk()
         root.addView(text((if (okB) "✅" else "⚠️") + " Batería sin restricciones"))
         if (!okB) root.addView(button("Quitar ahorro de batería a Secretario") {
-            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            // Ventana directa "¿Permitir que Secretario funcione siempre en segundo plano?"
+            val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                .setData(android.net.Uri.parse("package:$packageName"))
+            try { startActivity(direct) } catch (_: Exception) {
+                // Si el móvil no la tiene, abrimos la ficha de la app (ahí está el apartado Batería)
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(android.net.Uri.parse("package:$packageName")))
+            }
+        })
+        root.addView(button("Abrir ajustes de Secretario (batería, inicio automático…)") {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(android.net.Uri.parse("package:$packageName")))
         })
         root.addView(text("Último WhatsApp captado: " + ago(Store.lastSeen(this)), 14f))
         root.addView(text("Conectado a las notificaciones: " + ago(Store.connectedAt(this)), 14f))
