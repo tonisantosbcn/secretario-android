@@ -82,6 +82,12 @@ object Store {
     fun setCalendarId(c: Context, id: Long) = prefs(c).edit().putLong("calendarId", id).apply()
     fun notifyTimeOnly(c: Context): Boolean = prefs(c).getBoolean("notifyTimeOnly", true)
     fun setNotifyTimeOnly(c: Context, v: Boolean) = prefs(c).edit().putBoolean("notifyTimeOnly", v).apply()
+    fun connectedAt(c: Context): Long = prefs(c).getLong("connectedAt", 0L)
+    fun setConnectedAt(c: Context, v: Long) = prefs(c).edit().putLong("connectedAt", v).apply()
+    fun lastAnyApp(c: Context): String = prefs(c).getString("lastAnyApp", "") ?: ""
+    fun setLastAnyApp(c: Context, v: String) = prefs(c).edit().putString("lastAnyApp", v).apply()
+    fun lastError(c: Context): String = prefs(c).getString("lastError", "") ?: ""
+    fun setLastError(c: Context, v: String) = prefs(c).edit().putString("lastError", v).apply()
     fun lastSeen(c: Context): Long = prefs(c).getLong("lastSeen", 0L)
     fun setLastSeen(c: Context, v: Long) = prefs(c).edit().putLong("lastSeen", v).apply()
 }

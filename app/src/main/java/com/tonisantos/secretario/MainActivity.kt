@@ -98,6 +98,7 @@ class MainActivity : Activity() {
 
         // ---------- Estado ----------
         root.addView(text("Estado", 20f, true))
+        root.addView(button("Actualizar") { render() })
         val okL = listenerEnabled()
         root.addView(text((if (okL) "✅" else "❌") + " Acceso a notificaciones"))
         if (!okL) root.addView(button("Activar acceso a notificaciones") {
@@ -134,6 +135,11 @@ class MainActivity : Activity() {
             startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         })
         root.addView(text("Último WhatsApp captado: " + ago(Store.lastSeen(this)), 14f))
+        root.addView(text("Conectado a las notificaciones: " + ago(Store.connectedAt(this)), 14f))
+        val any = Store.lastAnyApp(this)
+        root.addView(text("Última notificación vista (cualquier app): " + any.ifEmpty { "ninguna" }, 14f))
+        Store.lastError(this).takeIf { it.isNotEmpty() }?.let { root.addView(text("⚠️ Último error: $it", 13f)) }
+        if (okL) root.addView(button("Reconectar con las notificaciones") { reconnect() })
 
         root.addView(CheckBox(this).apply {
             text = "Avisar también si el mensaje solo dice la hora"
@@ -210,6 +216,21 @@ class MainActivity : Activity() {
             Store.setStatus(this, item.id, "dismissed"); Notifier.cancel(this, item.id); render()
         })
         root.addView(row(*buttons.toTypedArray()))
+    }
+
+    /** Fuerza a Android a volver a conectar el lector de notificaciones. */
+    private fun reconnect() {
+        val cn = ComponentName(this, WhatsAppListener::class.java)
+        try {
+            packageManager.setComponentEnabledSetting(cn,
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED, android.content.pm.PackageManager.DONT_KILL_APP)
+            packageManager.setComponentEnabledSetting(cn,
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED, android.content.pm.PackageManager.DONT_KILL_APP)
+            android.service.notification.NotificationListenerService.requestRebind(cn)
+            Toast.makeText(this, "Reconectando… en unos segundos pulsa Actualizar", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "No se pudo: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun pickCalendar() {

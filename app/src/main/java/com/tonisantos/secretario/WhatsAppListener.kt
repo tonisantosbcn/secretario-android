@@ -27,12 +27,18 @@ class WhatsAppListener : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
+        Store.setConnectedAt(this, System.currentTimeMillis())
         // Al conectar, recogemos lo que ya esté en la barra de notificaciones.
         try { activeNotifications?.forEach { handle(it) } } catch (_: Exception) {}
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        try { handle(sbn) } catch (_: Exception) {}
+        try {
+            Store.setLastAnyApp(this, sbn.packageName + " · " + java.time.LocalTime.now().withNano(0))
+            handle(sbn)
+        } catch (e: Throwable) {
+            Store.setLastError(this, (e::class.java.simpleName + ": " + e.message).take(300))
+        }
     }
 
     private fun handle(sbn: StatusBarNotification) {
