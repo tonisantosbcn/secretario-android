@@ -1,0 +1,37 @@
+name: Compilar APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Pruebas del lector de fechas
+        run: gradle --no-daemon testDebugUnitTest
+      - name: Compilar
+        run: gradle --no-daemon assembleRelease
+      - name: Renombrar
+        run: cp app/build/outputs/apk/release/app-release.apk Secretario-${{ github.run_number }}.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Secretario-${{ github.run_number }}
+          path: Secretario-${{ github.run_number }}.apk
+      - name: Publicar en Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Secretario 1.0.${{ github.run_number }}
+          files: Secretario-${{ github.run_number }}.apk
