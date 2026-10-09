@@ -18,6 +18,7 @@ object Notifier {
     private const val CHANNEL = "citas"
     const val ACTION_ADD = "com.tonisantos.secretario.ADD"
     const val ACTION_DISMISS = "com.tonisantos.secretario.DISMISS"
+    const val ACTION_UNDO = "com.tonisantos.secretario.UNDO"
     const val EXTRA_ID = "id"
 
     private val ES = Locale.forLanguageTag("es-ES")
@@ -50,20 +51,43 @@ object Notifier {
 
     private fun nid(id: String) = id.hashCode()
 
-    fun candidate(c: Context, item: Item, r: DateParser.Result) {
+    private fun openIntent(c: Context, item: Item) = PendingIntent.getActivity(c, nid(item.id),
+        Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+    private fun pending(c: Context, item: Item, a: String) = PendingIntent.getBroadcast(c, nid(item.id) xor a.hashCode(),
+        Intent(c, ActionReceiver::class.java).setAction(a).putExtra(EXTRA_ID, item.id),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+    /** Cita añadida sola: aviso con «Deshacer». */
+    fun added(c: Context, item: Item, r: DateParser.Result) {
         if (!canNotify(c)) return
         ensureChannel(c)
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        val open = PendingIntent.getActivity(c, nid(item.id),
-            Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), flags)
-        fun action(a: String) = PendingIntent.getBroadcast(c, nid(item.id) xor a.hashCode(),
-            Intent(c, ActionReceiver::class.java).setAction(a).putExtra(EXTRA_ID, item.id), flags)
+        val b = Notification.Builder(c, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle("Añadido al calendario · ${item.chat}")
+            .setContentText(describe(r))
+            .setStyle(Notification.BigTextStyle().bigText(describe(r) + "\n\n" + item.sender + ": " + item.text))
+            .setContentIntent(openIntent(c, item))
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_REMINDER)
+            .addAction(Notification.Action.Builder(null, "Deshacer", pending(c, item, ACTION_UNDO)).build())
+        c.getSystemService(NotificationManager::class.java).notify(nid(item.id), b.build())
+    }
+
+    /** Posible cita: aviso con «Añadir» y «Descartar». reason = por qué no se añadió sola. */
+    fun candidate(c: Context, item: Item, r: DateParser.Result, reason: String = "") {
+        if (!canNotify(c)) return
+        ensureChannel(c)
+        val open = openIntent(c, item)
+        fun action(a: String) = pending(c, item, a)
+        val why = if (reason.isNotEmpty()) "\n($reason)" else ""
 
         val b = Notification.Builder(c, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle("Posible cita · ${item.chat}")
             .setContentText(describe(r))
-            .setStyle(Notification.BigTextStyle().bigText(describe(r) + "\n\n" + item.sender + ": " + item.text))
+            .setStyle(Notification.BigTextStyle().bigText(describe(r) + why + "\n\n" + item.sender + ": " + item.text))
             .setContentIntent(open)
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_REMINDER)
@@ -83,17 +107,27 @@ class ActionReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, intent: Intent) {
         val id = intent.getStringExtra(Notifier.EXTRA_ID) ?: return
         val item = Store.get(c, id) ?: return
+        if (intent.action == Notifier.ACTION_UNDO) {
+            Notifier.cancel(c, id)
+            if (item.status != "added") return
+            val ok = CalendarHelper.delete(c, item.eventId)
+            Store.setStatus(c, id, "dismissed", eventId = -1L, note = "deshecho")
+            Toast.makeText(c, if (ok) "Evento borrado del calendario" else "No encontré el evento; bórralo a mano",
+                Toast.LENGTH_LONG).show()
+            return
+        }
         if (item.status != "new") { Notifier.cancel(c, id); return } // ya se añadió o descartó desde la app
         when (intent.action) {
             Notifier.ACTION_ADD -> {
                 val r = item.parsed() ?: return
-                val err = CalendarHelper.insert(c, item, r)
-                if (err == null) {
-                    Store.setStatus(c, id, "added")
+                val res = CalendarHelper.add(c, item, r)
+                if (res.error == null) {
+                    Store.setStatus(c, id, "added", eventId = res.eventId ?: -1L)
                     Notifier.cancel(c, id)
-                    Toast.makeText(c, "Añadido al calendario", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(c, if (res.duplicate) "Ya estaba en el calendario" else "Añadido al calendario",
+                        Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(c, err, Toast.LENGTH_LONG).show()
+                    Toast.makeText(c, res.error, Toast.LENGTH_LONG).show()
                 }
             }
             Notifier.ACTION_DISMISS -> {

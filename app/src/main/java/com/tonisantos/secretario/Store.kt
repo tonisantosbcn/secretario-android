@@ -16,6 +16,8 @@ data class Item(
     val text: String,
     val ts: Long,
     var status: String, // "new", "added", "dismissed"
+    var eventId: Long = -1L, // evento creado en el calendario (para «Deshacer»)
+    var note: String = "",   // "auto" si se añadió solo
 ) {
     fun parsed(): DateParser.Result? =
         DateParser.parse(text, LocalDateTime.ofInstant(Instant.ofEpochMilli(ts), ZoneId.systemDefault()))
@@ -23,11 +25,13 @@ data class Item(
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("app", app).put("chat", chat).put("sender", sender)
         .put("text", text).put("ts", ts).put("status", status)
+        .put("eventId", eventId).put("note", note)
 
     companion object {
         fun fromJson(o: JSONObject) = Item(
             o.optString("id"), o.optString("app"), o.optString("chat"), o.optString("sender"),
             o.optString("text"), o.optLong("ts"), o.optString("status", "new"),
+            o.optLong("eventId", -1L), o.optString("note", ""),
         )
     }
 }
@@ -71,15 +75,21 @@ object Store {
     fun get(c: Context, id: String): Item? = all(c).firstOrNull { it.id == id }
 
     @Synchronized
-    fun setStatus(c: Context, id: String, status: String) {
+    fun setStatus(c: Context, id: String, status: String, eventId: Long? = null, note: String? = null) {
         val items = all(c)
-        items.firstOrNull { it.id == id }?.status = status
+        items.firstOrNull { it.id == id }?.let {
+            it.status = status
+            if (eventId != null) it.eventId = eventId
+            if (note != null) it.note = note
+        }
         save(c, items)
     }
 
     // ---- ajustes ----
     fun calendarId(c: Context): Long = prefs(c).getLong("calendarId", -1L)
     fun setCalendarId(c: Context, id: Long) = prefs(c).edit().putLong("calendarId", id).apply()
+    fun autoAdd(c: Context): Boolean = prefs(c).getBoolean("autoAdd", true)
+    fun setAutoAdd(c: Context, v: Boolean) = prefs(c).edit().putBoolean("autoAdd", v).apply()
     fun notifyTimeOnly(c: Context): Boolean = prefs(c).getBoolean("notifyTimeOnly", true)
     fun setNotifyTimeOnly(c: Context, v: Boolean) = prefs(c).edit().putBoolean("notifyTimeOnly", v).apply()
     fun connectedAt(c: Context): Long = prefs(c).getLong("connectedAt", 0L)

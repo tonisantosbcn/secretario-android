@@ -88,10 +88,7 @@ class WhatsAppListener : NotificationListenerService() {
         val id = sha256("$app|$chat|$sender|$text|$ts")
         val item = Item(id, app, chat, sender, text, ts, "new")
         if (!Store.addIfNew(this, item)) return
-        val r = item.parsed() ?: return
-        if (r.past) return
-        if (r.date == null && !Store.notifyTimeOnly(this)) return
-        Notifier.candidate(this, item, r)
+        Auto.onNewMessage(this, item)
     }
 
     private fun sha256(v: String): String =

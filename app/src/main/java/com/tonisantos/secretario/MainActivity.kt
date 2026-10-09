@@ -164,6 +164,11 @@ class MainActivity : Activity() {
         if (okL) root.addView(button("Reconectar con las notificaciones") { reconnect() })
 
         root.addView(CheckBox(this).apply {
+            text = "Añadir solas las citas claras (con aviso para deshacer)"
+            isChecked = Store.autoAdd(this@MainActivity)
+            setOnCheckedChangeListener { _, v -> Store.setAutoAdd(this@MainActivity, v) }
+        })
+        root.addView(CheckBox(this).apply {
             text = "Avisar también si el mensaje solo dice la hora"
             isChecked = Store.notifyTimeOnly(this@MainActivity)
             setOnCheckedChangeListener { _, v -> Store.setNotifyTimeOnly(this@MainActivity, v) }
@@ -195,7 +200,9 @@ class MainActivity : Activity() {
         var shown = 0
         for (item in items) {
             val r = item.parsed()
-            if (!showAll && (item.status != "new" || r == null || r.past ||
+            val recentAuto = item.note == "auto" && item.status == "added" &&
+                System.currentTimeMillis() - item.ts < 7 * 86_400_000L
+            if (!showAll && !recentAuto && (item.status != "new" || r == null || r.past ||
                     (r.date != null && r.date.isBefore(LocalDate.now())))) continue // ya pasó
             shown++
             if (shown > 150) break
@@ -212,19 +219,37 @@ class MainActivity : Activity() {
         root.addView(text("$time — $who", 13f, true, top = 14))
         root.addView(text(item.text.take(400)))
         if (r != null && !r.past) root.addView(text("➜ " + Notifier.describe(r), 14f, true))
+        if (item.status == "new" && r != null) {
+            val d = Auto.decide(item, r)
+            if (d.reason.isNotEmpty()) root.addView(text("(" + d.reason + ")", 13f))
+        }
         when (item.status) {
-            "added" -> root.addView(text("✔ Añadido al calendario", 13f))
-            "dismissed" -> root.addView(text("✖ Descartado", 13f))
+            "added" -> root.addView(text(when (item.note) {
+                "auto" -> "✔ Añadido solo al calendario"
+                "ya estaba" -> "✔ Ya estaba en el calendario"
+                else -> "✔ Añadido al calendario"
+            }, 13f))
+            "dismissed" -> root.addView(text(if (item.note == "deshecho") "↩ Deshecho" else "✖ Descartado", 13f))
         }
         val buttons = mutableListOf<View>()
         val rr: DateParser.Result? = if (item.status == "new" && r != null && r.date != null && !r.past &&
             !r.date.isBefore(LocalDate.now())) r else null
         if (rr != null) buttons.add(button("Añadir") {
-            val err = CalendarHelper.insert(this, item, rr)
-            if (err == null) {
-                Store.setStatus(this, item.id, "added"); Notifier.cancel(this, item.id)
-                Toast.makeText(this, "Añadido al calendario", Toast.LENGTH_SHORT).show(); render()
-            } else AlertDialog.Builder(this).setMessage(err).setPositiveButton("OK", null).show()
+            val res = CalendarHelper.add(this, item, rr)
+            if (res.error == null) {
+                Store.setStatus(this, item.id, "added", eventId = res.eventId ?: -1L,
+                    note = if (res.duplicate) "ya estaba" else "")
+                Notifier.cancel(this, item.id)
+                Toast.makeText(this, if (res.duplicate) "Ya estaba en el calendario" else "Añadido al calendario",
+                    Toast.LENGTH_SHORT).show(); render()
+            } else AlertDialog.Builder(this).setMessage(res.error).setPositiveButton("OK", null).show()
+        })
+        if (item.status == "added" && item.eventId > 0) buttons.add(button("Deshacer") {
+            val ok = CalendarHelper.delete(this, item.eventId)
+            Store.setStatus(this, item.id, "dismissed", eventId = -1L, note = "deshecho")
+            Notifier.cancel(this, item.id)
+            Toast.makeText(this, if (ok) "Evento borrado del calendario" else "No encontré el evento; bórralo a mano",
+                Toast.LENGTH_LONG).show(); render()
         })
         buttons.add(button("Ajustar") {
             try {

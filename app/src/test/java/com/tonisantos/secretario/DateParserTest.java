@@ -71,6 +71,24 @@ public class DateParserTest {
     @Test public void estaMananaNoPuedo() { check("esta mañana no puedo, a las 5", "2026-10-09 17:00 (supuesta)"); }
     @Test public void cincoDeLaManana() { check("mañana a las 5 de la mañana", "2026-10-10 05:00"); }
 
+    // ¿Cita en firme?
+    @Test public void pregunta() { assertTrue(DateParser.isQuestion("¿quedamos el jueves a las 17:30?")); }
+    @Test public void noPregunta() { assertFalse(DateParser.isQuestion("quedamos el jueves a las 17:30")); }
+    @Test public void noPuedo() { assertTrue(DateParser.isNegative("el jueves a las 17:30 no puedo")); }
+    @Test public void cancelado() { assertTrue(DateParser.isNegative("Se cancela el ensayo del 15/10")); }
+    @Test public void anullat() { assertTrue(DateParser.isNegative("L'assaig de dijous queda anul·lat")); }
+    @Test public void ajornat() { assertTrue(DateParser.isNegative("ho ajornem al dilluns a les 18:00")); }
+    @Test public void noNegativo() { assertFalse(DateParser.isNegative("nos vemos el jueves a las 17:30 en el Liceu")); }
+    @Test public void noNegativoNovela() { assertFalse(DateParser.isNegative("ensayo de Norma el 12/10 a las 10:00")); }
+    @Test public void vale() { assertTrue(DateParser.isConfirmation("Vale!")); }
+    @Test public void perfecte() { assertTrue(DateParser.isConfirmation("Perfecte, allà seré")); }
+    @Test public void pulgar() { assertTrue(DateParser.isConfirmation("👍")); }
+    @Test public void siPerfecto() { assertTrue(DateParser.isConfirmation("Sí, perfecto")); }
+    @Test public void valeNoPuedo() { assertFalse(DateParser.isConfirmation("vale, pero no puedo")); }
+    @Test public void siCondicional() { assertFalse(DateParser.isConfirmation("Si puedes ven el jueves")); }
+    @Test public void siSolo() { assertTrue(DateParser.isConfirmation("Sí!")); }
+    @Test public void noEsConfirmacion() { assertFalse(DateParser.isConfirmation("Sitges es precioso en octubre, tenemos que ir")); }
+
     // No debe saltar
     @Test public void saludo() { none("hola qué tal"); }
     @Test public void unaDeLasDos() { none("me quedo con una de las dos"); }

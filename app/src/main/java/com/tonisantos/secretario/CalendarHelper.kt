@@ -69,12 +69,36 @@ object CalendarHelper {
             Triple(s, s + DURATION_MIN * 60_000L, false)
         }
 
+    /** Resultado de crear un evento: eventId si se creó, duplicate si ya existía, error si falló. */
+    data class AddResult(val eventId: Long? = null, val duplicate: Boolean = false, val error: String? = null)
+
     /** Crea el evento directamente en el calendario elegido. Devuelve un mensaje de error o null si fue bien. */
-    fun insert(c: Context, item: Item, r: DateParser.Result): String? {
-        if (!hasPermission(c)) return "Falta el permiso de calendario. Ábrelo en Secretario."
-        val cal = selected(c) ?: return "No hay calendario elegido. Elígelo en Secretario."
-        val date = r.date ?: return "El mensaje no dice el día: usa «Ajustar»."
+    fun insert(c: Context, item: Item, r: DateParser.Result): String? = add(c, item, r).error
+
+    /** ¿Ya hay en ese calendario un evento a esa hora con este mismo mensaje? (p. ej. creado desde otro móvil) */
+    private fun exists(c: Context, calId: Long, start: Long, item: Item): Boolean {
+        val needle = item.text.replace(Regex("\\s+"), " ").trim().take(80)
+        val proj = arrayOf(CalendarContract.Events.TITLE, CalendarContract.Events.DESCRIPTION)
+        val sel = "${CalendarContract.Events.CALENDAR_ID}=? AND ${CalendarContract.Events.DTSTART}=? AND ${CalendarContract.Events.DELETED}=0"
+        return try {
+            c.contentResolver.query(CalendarContract.Events.CONTENT_URI, proj, sel,
+                arrayOf(calId.toString(), start.toString()), null)?.use { cur ->
+                while (cur.moveToNext()) {
+                    val title = cur.getString(0) ?: ""
+                    val desc = (cur.getString(1) ?: "").replace(Regex("\\s+"), " ")
+                    if (title == title(item) || (needle.isNotEmpty() && desc.contains(needle))) return true
+                }
+                false
+            } ?: false
+        } catch (_: Exception) { false }
+    }
+
+    fun add(c: Context, item: Item, r: DateParser.Result): AddResult {
+        if (!hasPermission(c)) return AddResult(error = "Falta el permiso de calendario. Ábrelo en Secretario.")
+        val cal = selected(c) ?: return AddResult(error = "No hay calendario elegido. Elígelo en Secretario.")
+        val date = r.date ?: return AddResult(error = "El mensaje no dice el día: usa «Ajustar».")
         val (start, end, allDay) = times(date, r.time)
+        if (exists(c, cal.id, start, item)) return AddResult(duplicate = true)
         val v = ContentValues().apply {
             put(CalendarContract.Events.CALENDAR_ID, cal.id)
             put(CalendarContract.Events.TITLE, title(item))
@@ -86,9 +110,9 @@ object CalendarHelper {
         }
         return try {
             val uri = c.contentResolver.insert(CalendarContract.Events.CONTENT_URI, v)
-                ?: return "El calendario no aceptó el evento."
+                ?: return AddResult(error = "El calendario no aceptó el evento.")
+            val eventId = uri.lastPathSegment?.toLongOrNull()
             if (!allDay) {
-                val eventId = uri.lastPathSegment?.toLongOrNull()
                 if (eventId != null) {
                     val rem = ContentValues().apply {
                         put(CalendarContract.Reminders.EVENT_ID, eventId)
@@ -98,10 +122,18 @@ object CalendarHelper {
                     try { c.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, rem) } catch (_: Exception) {}
                 }
             }
-            null
+            AddResult(eventId = eventId ?: -1L)
         } catch (e: Exception) {
-            "No se pudo crear: ${e.message}"
+            AddResult(error = "No se pudo crear: ${e.message}")
         }
+    }
+
+    /** Borra un evento creado por Secretario. Devuelve true si se borró. */
+    fun delete(c: Context, eventId: Long): Boolean {
+        if (eventId <= 0 || !hasPermission(c)) return false
+        return try {
+            c.contentResolver.delete(android.content.ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId), null, null) > 0
+        } catch (_: Exception) { false }
     }
 
     /** Abre la app de calendario con el evento rellenado, para cambiar lo que haga falta antes de guardar. */

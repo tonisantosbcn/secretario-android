@@ -254,6 +254,36 @@ public final class DateParser {
         return null;
     }
 
+    // ---------- ¿es una cita en firme? ----------
+    private static final Pattern NEGATIVE = Pattern.compile(
+            "\\b(?:no\\s+(?:puedo|podre|podemos|podremos|puede|podra|voy|vamos|vendre|vengo|llego|llegare|estare|"
+                    + "me\\s+va|me\\s+viene|nos\\s+va|nos\\s+viene|hay|habra|sera|es)|"
+                    + "no\\s+(?:puc|podre|podem|podrem|pot|vinc|vindre|anire|anirem|arribo|arribare|sere|hi\\s+ha|em\\s+va|ens\\s+va)|"
+                    + "cancel\\w*|anul\\.?l?\\w*|suspen\\w*|aplaz\\w*|ajorn\\w*|pospo\\w*|desconvoc\\w*|"
+                    + "imposible|impossible|otro\\s+dia|un\\s+altre\\s+dia|ya\\s+no|ja\\s+no)\\b");
+    private static final Pattern CONFIRM = Pattern.compile(
+            "^\\W*(?:vale|val|ok|okey|okay|oki|perfecto|perfecte|perfect|de\\s+acuerdo|d'acord|hecho|fet|genial|"
+                    + "confirmado|confirmat|confirmo|claro|clar|si(?=\\W*$|\\s*[,.!])|alli\\s+estare|alla\\s+estare|alli\\s+nos\\s+vemos|"
+                    + "nos\\s+vemos|ens\\s+veiem|alla\\s+sere|hi\\s+sere|apuntado|apuntat|cuenta\\s+conmigo|"
+                    + "compta\\s+amb\\s+mi|\\ud83d\\udc4d)(?:\\W.*)?$");
+
+    /** ¿El mensaje pregunta o propone? ("¿quedamos el jueves?") */
+    public static boolean isQuestion(String text) {
+        return text != null && (text.indexOf('?') >= 0 || text.indexOf('\u00bf') >= 0);
+    }
+
+    /** ¿Dice que no, cancela o aplaza? */
+    public static boolean isNegative(String text) {
+        return text != null && NEGATIVE.matcher(normalize(text)).find();
+    }
+
+    /** ¿Es una respuesta corta de confirmación? ("vale", "perfecto", "d'acord", 👍) */
+    public static boolean isConfirmation(String text) {
+        if (text == null) return false;
+        String t = normalize(text).trim();
+        return t.length() <= 40 && !isNegative(text) && CONFIRM.matcher(t).matches();
+    }
+
     /** Analiza el texto. now = momento en que llegó el mensaje. */
     public static Result parse(String text, LocalDateTime now) {
         if (text == null || text.trim().isEmpty()) return null;
