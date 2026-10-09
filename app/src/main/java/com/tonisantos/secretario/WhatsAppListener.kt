@@ -51,8 +51,8 @@ class WhatsAppListener : NotificationListenerService() {
         Store.setLastSeen(this, System.currentTimeMillis())
 
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
-        val chat = extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()
-            ?.takeIf { it.isNotBlank() } ?: title
+        val chat = cleanChat(extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()
+            ?.takeIf { it.isNotBlank() } ?: title)
 
         val messages = readMessagingStyle(extras)
         if (messages.isNotEmpty()) {
@@ -62,7 +62,7 @@ class WhatsAppListener : NotificationListenerService() {
         } else {
             val text = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.takeIf { it.isNotBlank() }
                 ?: extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
-            if (text.isNotBlank()) save(appName, chat, title, text, sbn.postTime)
+            if (text.isNotBlank()) save(appName, chat, cleanChat(title), text, sbn.postTime)
         }
     }
 
@@ -83,6 +83,12 @@ class WhatsAppListener : NotificationListenerService() {
         }
         return out
     }
+
+    /** "Ana (3 mensajes)" -> "Ana": WhatsApp cambia el título según cuántos mensajes haya sin leer. */
+    private fun cleanChat(s: String): String =
+        s.replace(Regex("\\s*\\(\\s*\\d+\\s+(?:mensajes?|missatges?|messages?)[^)]*\\)\\s*$", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s*[:·-]\\s*\\d+\\s+(mensajes?|missatges?|messages?)\\b.*$", RegexOption.IGNORE_CASE), "")
+            .trim()
 
     private fun save(app: String, chat: String, sender: String, text: String, ts: Long) {
         val id = sha256("$app|$chat|$sender|$text|$ts")
