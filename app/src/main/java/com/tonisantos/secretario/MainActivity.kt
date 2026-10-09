@@ -94,10 +94,32 @@ class MainActivity : Activity() {
 
     private fun render() {
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(32)) }
-        setContentView(ScrollView(this).apply { addView(root) })
+        val scroll = ScrollView(this).apply {
+            addView(root)
+            // Android 15 dibuja la app por debajo de las barras del sistema: dejamos ese hueco.
+            setOnApplyWindowInsetsListener { v, insets ->
+                var top = 0
+                var bottom = 0
+                if (Build.VERSION.SDK_INT >= 30) {
+                    val bars = insets.getInsets(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
+                    top = bars.top; bottom = bars.bottom
+                } else {
+                    @Suppress("DEPRECATION")
+                    top = insets.systemWindowInsetTop
+                    @Suppress("DEPRECATION")
+                    bottom = insets.systemWindowInsetBottom
+                }
+                v.setPadding(0, top, 0, bottom)
+                insets
+            }
+        }
+        setContentView(scroll)
+        scroll.requestApplyInsets()
+
+        root.addView(text("Secretario", 26f, true))
 
         // ---------- Estado ----------
-        root.addView(text("Estado", 20f, true))
+        root.addView(text("Estado", 20f, true, top = 8))
         root.addView(button("Actualizar") { render() })
         val okL = listenerEnabled()
         root.addView(text((if (okL) "✅" else "❌") + " Acceso a notificaciones"))
