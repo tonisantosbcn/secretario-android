@@ -54,8 +54,19 @@ class MainActivity : Activity() {
             setTextIsSelectable(false)
         }
 
+    private var lastClick = 0L
+
+    /** Botón que ignora una segunda pulsación seguida (menos de 2 s), para no crear eventos repetidos. */
     private fun button(label: String, onClick: () -> Unit) =
-        Button(this).apply { text = label; isAllCaps = false; setOnClickListener { onClick() } }
+        Button(this).apply {
+            text = label; isAllCaps = false
+            setOnClickListener {
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - lastClick < 2000) return@setOnClickListener
+                lastClick = now
+                onClick()
+            }
+        }
 
     private fun row(vararg views: View) = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
